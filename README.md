@@ -88,17 +88,6 @@ npm run dev   # http://localhost:3000
 6. Smoke test: sign up via email OTP → create 1 event → upload photos →
    export client gallery → test checkout with a Razorpay test payment.
 
-## What only the owner can do
-
-Jarvis cannot do these — they need your identity, money, or KYC:
-
-- [ ] Buy a domain (~₹800/yr, e.g. framefinder.in)
-- [ ] Create Supabase account + project (free tier OK)
-- [ ] Create Razorpay account and complete KYC (test keys work before KYC; live payments need it)
-- [ ] Create Vercel account and connect this repo
-- [ ] Paste the 8 keys from `.env.example` into Vercel env vars
-- [ ] Point the Razorpay webhook at `https://YOUR-DOMAIN/api/billing/webhook`
-
 ## Feature status
 
 Complete: landing, email-OTP auth, middleware-gated Studio, events/folders/photos
