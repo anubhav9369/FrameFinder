@@ -11,6 +11,12 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        brand: {
+          DEFAULT: "#FF6B4A",
+          soft: "#FF8A66",
+          deep: "#E5532F",
+          muted: "rgba(255, 107, 74, 0.12)",
+        },
       },
     },
   },

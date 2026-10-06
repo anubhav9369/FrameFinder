@@ -67,7 +67,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-zinc-100 placeholder:text-zinc-600 focus:border-brand focus:outline-none"
               />
             </label>
             {error && (
@@ -76,7 +76,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold hover:bg-indigo-500 disabled:opacity-50"
+              className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-white hover:bg-brand-deep disabled:opacity-50"
             >
               {loading ? "Sending link…" : "Email me a login link"}
             </button>

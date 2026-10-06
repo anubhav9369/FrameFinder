@@ -77,7 +77,7 @@ export default function CheckoutButton({ planId }: { planId: string }) {
         currency: orderData.currency ?? "INR",
         name: "FrameFinder",
         order_id: orderData.orderId,
-        theme: { color: "#4f46e5" },
+        theme: { color: "#FF6B4A" },
         handler: async (response) => {
           try {
             const verifyRes = await fetch("/api/billing/verify", {
@@ -118,7 +118,7 @@ export default function CheckoutButton({ planId }: { planId: string }) {
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="w-full rounded-xl bg-indigo-600 px-4 py-3 font-semibold hover:bg-indigo-500 disabled:opacity-50"
+        className="w-full rounded-xl bg-brand px-4 py-3 font-semibold text-white hover:bg-brand-deep disabled:opacity-50"
       >
         {loading ? "Starting checkout…" : "Upgrade with Razorpay"}
       </button>

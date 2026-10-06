@@ -23,7 +23,7 @@ export default function PricingPage() {
               key={plan.id}
               className={`flex flex-col rounded-2xl border p-8 ${
                 plan.id === "starter"
-                  ? "border-indigo-500 bg-zinc-900"
+                  ? "border-brand bg-brand-muted"
                   : "border-zinc-800 bg-zinc-900/60"
               }`}
             >
