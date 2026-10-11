@@ -16,5 +16,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login`);
+  // The link was missing, expired, or already superseded by a newer one.
+  // Send the user back with an explanation instead of a bare login page.
+  return NextResponse.redirect(`${origin}/login?error=link_expired`);
 }

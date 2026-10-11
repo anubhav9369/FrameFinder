@@ -1,14 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+function friendlyError(raw: string | null): string | null {
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (lower.includes("rate limit")) {
+    return "Too many login emails sent. Please wait about an hour, then request one fresh link — and click it only once.";
+  }
+  return raw;
+}
+
+function LoginForm() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const linkError =
+    searchParams.get("error") === "link_expired"
+      ? "That login link expired or was already used. Request a fresh one below — then open the newest email and click its link exactly once."
+      : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,7 +41,7 @@ export default function LoginPage() {
       if (otpError) throw otpError;
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(friendlyError(err instanceof Error ? err.message : "Something went wrong."));
     } finally {
       setLoading(false);
     }
@@ -41,6 +57,12 @@ export default function LoginPage() {
         <p className="mt-2 text-sm text-zinc-400">
           Password-free login — we email you a secure sign-in link.
         </p>
+
+        {linkError && !sent && (
+          <div className="mt-6 rounded-xl border border-amber-800 bg-amber-950/40 p-4">
+            <p className="text-sm text-amber-200">{linkError}</p>
+          </div>
+        )}
 
         {sent ? (
           <div className="mt-6 rounded-xl border border-emerald-800 bg-emerald-950/40 p-4">
@@ -84,5 +106,13 @@ export default function LoginPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
