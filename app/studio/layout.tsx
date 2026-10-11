@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getEntitlement } from '@/lib/entitlements';
 import SignOutButton from './SignOutButton';
+import EventSwitcher, { type SwitcherEvent } from './EventSwitcher';
 
 export default async function StudioLayout({
   children,
@@ -17,6 +18,22 @@ export default async function StudioLayout({
 
   const entitlement = await getEntitlement(supabase, user.id);
 
+  // Event switcher: the user's events from the DB (owner_id), newest first.
+  const { data: eventRows } = await supabase
+    .from('events')
+    .select('id, name, photos(count)')
+    .eq('owner_id', user.id)
+    .order('created_at', { ascending: false });
+  const switcherEvents: SwitcherEvent[] = ((eventRows ?? []) as Array<{
+    id: string;
+    name: string;
+    photos?: { count: number }[];
+  }>).map((e) => ({
+    id: e.id,
+    name: e.name,
+    photoCount: e.photos?.[0]?.count ?? 0,
+  }));
+
   const nav = [
     { href: '/studio', label: 'Events' },
     { href: '/pricing', label: 'Billing' },
@@ -29,6 +46,7 @@ export default async function StudioLayout({
         <Link href="/studio" className="text-xl font-bold tracking-tight">
           FrameFinder <span className="text-amber-400">Studio</span>
         </Link>
+        <EventSwitcher events={switcherEvents} />
         <nav className="flex flex-col gap-1">
           {nav.map((n) => (
             <Link

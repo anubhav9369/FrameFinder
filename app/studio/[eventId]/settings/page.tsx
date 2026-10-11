@@ -19,7 +19,7 @@ export default async function SettingsPage({
     .from('events')
     .select('*')
     .eq('id', params.eventId)
-    .eq('user_id', user.id)
+    .eq('owner_id', user.id)
     .single();
   if (!eventData) notFound();
   const event = eventData as EventRow;

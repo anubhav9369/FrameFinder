@@ -4,14 +4,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { loadModels, detectFaces, loadImage } from '@/lib/face';
 import type { EventRow, FolderRow, PhotoRow } from '@/lib/studio-types';
 
 const PRESETS = ['Haldi', 'Mehndi', 'Sangeet', 'Marriage'];
 
 interface UploadItem {
   name: string;
-  status: 'uploading' | 'saving' | 'done' | 'error';
+  status: 'uploading' | 'saving' | 'scanning' | 'done' | 'error';
   error?: string;
+  photoId?: string;
+  objectUrl?: string;
 }
 
 function useSignedUrls(photos: PhotoRow[]) {
@@ -60,6 +63,27 @@ export default function EventWorkspace({
   const [quotaHit, setQuotaHit] = useState(false);
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Watermark preview (artifact parity). Opacity is a per-device setting —
+  // there is no watermark_opacity column, so it lives in localStorage.
+  const [watermarkOn, setWatermarkOn] = useState(true);
+  const [watermarkOpacity, setWatermarkOpacity] = useState(35);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`ff-watermark-opacity:${event.id}`);
+      if (saved) setWatermarkOpacity(Number(saved));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [event.id]);
+  function setOpacity(v: number) {
+    setWatermarkOpacity(v);
+    try {
+      localStorage.setItem(`ff-watermark-opacity:${event.id}`, String(v));
+    } catch {
+      /* storage unavailable */
+    }
+  }
 
   const urls = useSignedUrls(photos);
 
@@ -129,9 +153,12 @@ export default function EventWorkspace({
     if (!files || files.length === 0) return;
     const folderId = activeFolder === 'all' ? null : activeFolder;
     const supabase = createClient();
-    const items: UploadItem[] = Array.from(files).map((f) => ({
+    const fileList = Array.from(files);
+    const objectUrls = fileList.map((f) => URL.createObjectURL(f));
+    const items: UploadItem[] = fileList.map((f, i) => ({
       name: f.name,
       status: 'uploading' as const,
+      objectUrl: objectUrls[i],
     }));
     setUploads(items);
     setQuotaHit(false);
@@ -140,8 +167,9 @@ export default function EventWorkspace({
       setUploads((u) => u.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
 
     const created: PhotoRow[] = [];
+    const createdIdx: number[] = [];
     let idx = 0;
-    for (const file of Array.from(files)) {
+    for (const file of fileList) {
       const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       const path = `${userId}/${event.id}/${folderId ?? 'unfiled'}/${safeName}`;
       const { error: upErr } = await supabase.storage
@@ -177,10 +205,44 @@ export default function EventWorkspace({
       }
       const photo = (await res.json()) as PhotoRow;
       created.push(photo);
-      update(idx, { status: 'done' });
+      createdIdx.push(idx);
+      update(idx, { status: 'scanning', photoId: photo.id });
       idx++;
     }
     if (created.length > 0) setPhotos((p) => [...p, ...created]);
+
+    // ---------- on-device face detection (artifact parity) ----------
+    // Runs after upload so a slow model download never blocks saving.
+    // Descriptors are derived data — only faces_count is persisted.
+    if (created.length > 0) {
+      try {
+        await loadModels();
+        for (let k = 0; k < created.length; k++) {
+          const photo = created[k];
+          const uIdx = createdIdx[k];
+          const item = items[uIdx];
+          try {
+            const img = await loadImage(item.objectUrl!);
+            const faces = await detectFaces(img, photo.id);
+            const count = faces.length;
+            await fetch(`/api/photos/${photo.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ faces_count: count }),
+            });
+            setPhotos((p) => p.map((x) => (x.id === photo.id ? { ...x, faces_count: count } : x)));
+            update(uIdx, { status: 'done' });
+          } catch {
+            update(uIdx, { status: 'done' });
+          }
+        }
+      } catch {
+        // Model load failed — uploads still succeeded; mark scanning items done.
+        for (const uIdx of createdIdx) update(uIdx, { status: 'done' });
+      } finally {
+        for (const url of objectUrls) URL.revokeObjectURL(url);
+      }
+    }
   }
 
   // ---------- photos ----------
@@ -404,6 +466,7 @@ export default function EventWorkspace({
                 >
                   {u.status === 'uploading' && 'Uploading…'}
                   {u.status === 'saving' && 'Saving…'}
+                  {u.status === 'scanning' && 'Scanning faces…'}
                   {u.status === 'done' && '✓ Done'}
                   {u.status === 'error' && `✕ ${u.error ?? 'Failed'}`}
                 </span>
@@ -415,10 +478,38 @@ export default function EventWorkspace({
 
       {/* photo grid */}
       <div>
-        <p className="text-sm text-zinc-500 mb-3">
-          {visiblePhotos.length} photo{visiblePhotos.length === 1 ? '' : 's'}
-          {activeFolder !== 'all' && ` in ${folderName(activeFolder)}`}
-        </p>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <p className="text-sm text-zinc-500">
+            {visiblePhotos.length} photo{visiblePhotos.length === 1 ? '' : 's'}
+            {activeFolder !== 'all' && ` in ${folderName(activeFolder)}`}
+          </p>
+          {event.watermark_text && (
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <button
+                onClick={() => setWatermarkOn((v) => !v)}
+                className={`rounded-full px-3 py-1 border transition-colors ${
+                  watermarkOn
+                    ? 'border-amber-400/60 text-amber-300'
+                    : 'border-zinc-700 text-zinc-500'
+                }`}
+                title="Toggle watermark preview"
+              >
+                Watermark {watermarkOn ? 'on' : 'off'}
+              </button>
+              {watermarkOn && (
+                <input
+                  type="range"
+                  min={5}
+                  max={80}
+                  value={watermarkOpacity}
+                  onChange={(e) => setOpacity(Number(e.target.value))}
+                  className="w-24 accent-amber-400"
+                  title={`Watermark opacity ${watermarkOpacity}%`}
+                />
+              )}
+            </div>
+          )}
+        </div>
         {visiblePhotos.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-zinc-700 p-10 text-center text-sm text-zinc-500">
             No photos here yet. Choose photos above to upload.
@@ -437,6 +528,22 @@ export default function EventWorkspace({
                   <img src={urls[p.id]} alt={p.filename} loading="lazy" className="h-full w-full object-cover" />
                 ) : (
                   <div className="h-full w-full animate-pulse bg-zinc-800" />
+                )}
+                {watermarkOn && event.watermark_text && (
+                  <span
+                    className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white pointer-events-none px-2 text-center"
+                    style={{ opacity: watermarkOpacity / 100 }}
+                  >
+                    {event.watermark_text}
+                  </span>
+                )}
+                {(p.faces_count ?? 0) > 0 && (
+                  <span
+                    className="absolute top-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-zinc-200"
+                    title={`${p.faces_count} face${p.faces_count === 1 ? '' : 's'} detected`}
+                  >
+                    👤 {p.faces_count}
+                  </span>
                 )}
                 <button
                   onClick={(e) => {
@@ -472,11 +579,21 @@ export default function EventWorkspace({
         >
           <div className="flex-1 flex items-center justify-center min-h-0 p-4" onClick={(e) => e.stopPropagation()}>
             {urls[lightboxPhoto.id] ? (
-              <img
-                src={urls[lightboxPhoto.id]}
-                alt={lightboxPhoto.filename}
-                className="max-h-full max-w-full object-contain rounded-lg"
-              />
+              <div className="relative max-h-full max-w-full">
+                <img
+                  src={urls[lightboxPhoto.id]}
+                  alt={lightboxPhoto.filename}
+                  className="max-h-full max-w-full object-contain rounded-lg"
+                />
+                {watermarkOn && event.watermark_text && (
+                  <span
+                    className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white pointer-events-none px-4 text-center"
+                    style={{ opacity: watermarkOpacity / 100 }}
+                  >
+                    {event.watermark_text}
+                  </span>
+                )}
+              </div>
             ) : (
               <div className="text-zinc-400">Loading…</div>
             )}

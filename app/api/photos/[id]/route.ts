@@ -21,6 +21,7 @@ async function getOwnedPhoto(session: Session, id: string): Promise<PhotoRow | n
 interface UpdatePhotoBody {
   starred?: unknown;
   folderId?: unknown;
+  faces_count?: unknown;
 }
 
 export async function PATCH(request: Request, { params }: RouteParams) {
@@ -33,8 +34,13 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   const body = (await request.json()) as UpdatePhotoBody;
-  const patch: { starred?: boolean; folder_id?: string | null } = {};
+  const patch: { starred?: boolean; folder_id?: string | null; faces_count?: number } = {};
   if (body.starred !== undefined) patch.starred = body.starred === true;
+
+  if (body.faces_count !== undefined) {
+    const n = Number(body.faces_count);
+    if (Number.isInteger(n) && n >= 0) patch.faces_count = n;
+  }
 
   if (body.folderId !== undefined) {
     if (body.folderId === null) {

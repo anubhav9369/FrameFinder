@@ -55,6 +55,15 @@ interface CreateEventBody {
   location?: unknown;
   event_date?: unknown;
   photographer_whatsapp?: unknown;
+  price_per_photo?: unknown;
+  event_price?: unknown;
+  watermark_text?: unknown;
+}
+
+function toNullableNumber(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 export async function POST(request: Request) {
@@ -88,6 +97,10 @@ export async function POST(request: Request) {
         typeof body.photographer_whatsapp === "string"
           ? body.photographer_whatsapp.trim() || null
           : null,
+      price_per_photo: toNullableNumber(body.price_per_photo),
+      event_price: toNullableNumber(body.event_price),
+      watermark_text:
+        typeof body.watermark_text === "string" ? body.watermark_text.trim() || null : null,
     })
     .select()
     .single();

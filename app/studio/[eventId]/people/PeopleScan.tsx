@@ -62,6 +62,7 @@ export default function PeopleScan({
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [openPerson, setOpenPerson] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shortlisting, setShortlisting] = useState(false);
 
   async function scan() {
     setError(null);
@@ -123,6 +124,25 @@ export default function PeopleScan({
   const openFaces = openPerson !== null ? persons[openPerson].faces : [];
   const openPhotoIds = Array.from(new Set(openFaces.map((f) => f.photoId)));
 
+  // Star every photo this person appears in (artifact "Shortlist all").
+  async function shortlistAll() {
+    if (openPerson === null || shortlisting || openPhotoIds.length === 0) return;
+    setShortlisting(true);
+    try {
+      await Promise.all(
+        openPhotoIds.map((id) =>
+          fetch(`/api/photos/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ starred: true }),
+          }),
+        ),
+      );
+    } finally {
+      setShortlisting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -176,9 +196,18 @@ export default function PeopleScan({
 
       {openPerson !== null && persons[openPerson] && (
         <div>
-          <button onClick={() => setOpenPerson(null)} className="text-sm text-amber-300 hover:text-amber-200 mb-4">
-            ← All people
-          </button>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <button onClick={() => setOpenPerson(null)} className="text-sm text-amber-300 hover:text-amber-200">
+              ← All people
+            </button>
+            <button
+              onClick={shortlistAll}
+              disabled={shortlisting || openPhotoIds.length === 0}
+              className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-zinc-950 hover:bg-amber-300 disabled:opacity-40"
+            >
+              {shortlisting ? 'Shortlisting…' : `★ Shortlist all ${openPhotoIds.length} photos`}
+            </button>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
             {openPhotoIds.map((id) => {
               const p = photoById[id];

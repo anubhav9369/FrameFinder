@@ -25,7 +25,7 @@ export default async function PeoplePage({
     .from('events')
     .select('id,name')
     .eq('id', params.eventId)
-    .eq('user_id', user.id)
+    .eq('owner_id', user.id)
     .single();
   if (!eventData) notFound();
 

@@ -19,7 +19,7 @@ export default async function StudioPage() {
     const { data } = await supabase
       .from('events')
       .select('*, folders(count), photos(count)')
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
       .order('created_at', { ascending: false });
     events = ((data ?? []) as Array<EventRow & { folders: { count: number }[]; photos: { count: number }[] }>).map(
       (e) => ({
